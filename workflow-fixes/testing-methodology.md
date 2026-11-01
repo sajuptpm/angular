@@ -188,7 +188,90 @@ angular-release-packages            10.6 MB      No         13100318524
 
 ---
 
-### Script 3: `test-all-workflows.py`
+### Script 3: `check-run-jobs.py`
+
+Deep inspection and cross-pipeline analysis of jobs, statuses, timings, and failures.
+
+#### Features
+- **Job Status Breakdown**: Categorizes jobs into Passed, Failed, Running, and Skipped.
+- **Timing & Latency**: Measures pipeline execution duration and runner queue latency.
+- **Step-Level Failure Diagnostics**: Pinpoints the exact failing step, number, and duration within failed jobs.
+- **Cross-Pipeline Dashboard (`--overview`)**: Analyzes the latest run of all 11 workflows across the repository in a single unified table.
+- **Markdown Export (`--markdown`)**: Generates GitHub-flavored markdown summaries for PRs or issue comments.
+
+#### Concrete Examples
+
+```bash
+# 1. Deep job breakdown for a specific run (e.g. release run):
+python workflow-fixes/scripts/check-run-jobs.py 41348685585
+
+# 2. View cross-pipeline health dashboard across ALL 11 workflows:
+python workflow-fixes/scripts/check-run-jobs.py --overview
+
+# 3. Filter recent runs by conclusion (e.g. find failed runs):
+python workflow-fixes/scripts/check-run-jobs.py --status failure
+
+# 4. View latest run and jobs for a specific workflow:
+python workflow-fixes/scripts/check-run-jobs.py --workflow ci.yml
+
+# 5. Export job analysis as Markdown table:
+python workflow-fixes/scripts/check-run-jobs.py 41348685585 --markdown
+```
+
+---
+
+### Script 4: `cancel-queued-runs.py`
+
+Emergency queue clearance and runner minute conservation utility.
+
+#### Features
+- **Queue Inspection**: Lists all currently queued and active runs across the repository.
+- **Selective Cancellation**: Cancel a specific stuck run or cancel all queued runs before they begin execution.
+- **Bulk Cleanup**: Cancel all active runs to immediately clear self-hosted or GitHub-hosted runners.
+
+#### Concrete Examples
+
+```bash
+# 1. List active and queued runs:
+python workflow-fixes/scripts/cancel-queued-runs.py --list
+
+# 2. Cancel a specific run by ID:
+python workflow-fixes/scripts/cancel-queued-runs.py 41348685585
+
+# 3. Cancel all queued runs:
+python workflow-fixes/scripts/cancel-queued-runs.py --queued
+
+# 4. Cancel all active (queued + in-progress) runs:
+python workflow-fixes/scripts/cancel-queued-runs.py --all
+```
+
+---
+
+### Script 5: `validate-workflows.py`
+
+Static linter and dual-mode compliance validator for `.github/workflows/*.yml`.
+
+#### Features
+- **YAML Syntax Validation**: Parses every workflow with PyYAML to catch indentation and syntax errors.
+- **Trigger Compliance**: Verifies `workflow_dispatch` is present for manual testing.
+- **Runner Audit**: Ensures jobs use dynamic `${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}` rather than hardcoded proprietary runner pools.
+- **Security Audit**: Validates that no `secrets.*` references are evaluated inside step `if:` expressions.
+- **Action Pinning**: Confirms modern actions (`actions/upload-artifact@v4`) and pinned commit SHAs are utilized.
+- **Runner Minute Protection**: Confirms heavy automatic `push:` triggers are commented or guarded.
+
+#### Concrete Examples
+
+```bash
+# 1. Audit all 11 workflows in the repository:
+python workflow-fixes/scripts/validate-workflows.py
+
+# 2. Audit a specific workflow file:
+python workflow-fixes/scripts/validate-workflows.py release.yml
+```
+
+---
+
+### Script 6: `test-all-workflows.py`
 
 Executes sequential end-to-end suite testing across all modernized workflows.
 
