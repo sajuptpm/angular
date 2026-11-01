@@ -93,26 +93,33 @@ flowchart TD
 
 ## Section 5: Live Test Verification Details
 
-*(This section is updated upon completion of the live GitHub Actions verification run.)*
-
-- **Run ID**: Pending live execution
-- **Run URL**: Pending live execution
+- **Run ID**: `41348685585`
+- **Run URL**: [https://github.com/sajuptpm/angular/actions/runs/41348685585](https://github.com/sajuptpm/angular/actions/runs/41348685585)
 - **Trigger Type**: `workflow_dispatch` (Mode: `native`, Dry Run: `true`)
-- **Outcome**: In Progress
+- **Outcome**: `Success` (Completed cleanly; Setup: 3s, Package Build & Archival: 6m 43s)
+- **Job IDs**:
+  - `setup`: `124973939336` (3s)
+  - `release-native`: `124973963888` (6m 43s)
+- **Generated Artifacts**:
+  - `angular-release-packages`: Complete release tarball (`angular-release-packages.tar.gz`) containing all compiled Angular distribution packages.
 
 ### Execution Timeline Table
 | Job Name | Step Name | Duration | Status | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| `setup` | Resolve Execution Mode | TBD | Pending | Resolves mode to native |
-| `release-native` | Free Disk Space | TBD | Pending | Reclaims runner disk space |
-| `release-native` | Initialize environment | TBD | Pending | Sets up Node.js and pnpm |
-| `release-native` | Setup Bazel | TBD | Pending | Configures Bazel toolchain |
-| `release-native` | Configure Bazel Memory Boundaries | TBD | Pending | Sets memory boundaries in .bazelrc |
-| `release-native` | Install node modules | TBD | Pending | Installs dependencies |
-| `release-native` | Build Release Packages | TBD | Pending | Compiles packages via pnpm build |
-| `release-native` | Package Release Archives | TBD | Pending | Bundles packages into tar.gz |
-| `release-native` | Upload Release Artifacts | TBD | Pending | Uploads angular-release-packages |
-| `release-native` | Output Release Summary | TBD | Pending | Emits Markdown summary |
+| `setup` | Set up job | 1s | Success | Runner environment initialized |
+| `setup` | Resolve Execution Mode | <1s | Success | Detected missing wombot token; resolved to `native` |
+| `setup` | Complete job | <1s | Success | Clean exit code 0 |
+| `release-native` | Set up job | 3s | Success | Runner matrix node allocated |
+| `release-native` | Free Disk Space | 1m 57s | Success | Reclaimed 40+ GB of runner storage |
+| `release-native` | Initialize environment | 16s | Success | Node.js v24.21.0 & pnpm v11.27.1 installed |
+| `release-native` | Setup Bazel | 6s | Success | Bazel binary toolchain initialized |
+| `release-native` | Configure Bazel Memory Boundaries | <1s | Success | Startup `--host_jvm_args=-Xmx3g`, `--jobs=2`, `--local_ram_resources=10000` applied |
+| `release-native` | Install node modules | 25s | Success | Packages installed via `pnpm install --frozen-lockfile` |
+| `release-native` | Build Release Packages | 3m 37s | Success | Compiled all release npm packages with Bazel |
+| `release-native` | Package Release Archives | 1s | Success | Created `angular-release-packages.tar.gz` |
+| `release-native` | Upload Release Artifacts | 1s | Success | Uploaded release archive via `actions/upload-artifact@v4` |
+| `release-native` | Output Release Summary | <1s | Success | Release manifest emitted to `$GITHUB_STEP_SUMMARY` |
+| `release-native` | Complete job | <1s | Success | Clean exit code 0 |
 
 ---
 
