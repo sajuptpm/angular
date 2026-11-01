@@ -102,22 +102,29 @@ flowchart TD
 
 ## Section 5: Live Test Verification Details
 
-*(This section is updated upon completion of the live GitHub Actions verification run.)*
-
-- **Run ID**: Pending live execution
-- **Run URL**: Pending live execution
-- **Trigger Type**: `workflow_dispatch` (Selected Job: `lint`, Mode: `native`)
-- **Outcome**: In Progress
+- **Run ID**: `41346410117`
+- **Run URL**: [https://github.com/sajuptpm/angular/actions/runs/41346410117](https://github.com/sajuptpm/angular/actions/runs/41346410117)
+- **Trigger Type**: `workflow_dispatch` (Job: `lint`, Mode: `native`)
+- **Outcome**: `Success` (Completed in 1m 24s)
+- **Target Job ID**: `124967056852`
 
 ### Execution Timeline Table
 | Job Name | Step Name | Duration | Status | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| `lint` | Initialize environment | TBD | Pending | Sets up Node.js and pnpm |
-| `lint` | Install node modules | TBD | Pending | Installs dependencies |
-| `lint` | Check code lint | TBD | Pending | Executes tslint |
-| `lint` | Circular dependencies check | TBD | Pending | Verifies circular references |
-| `lint` | Validate pullapprove & ngbot | TBD | Pending | Confirms repository rules |
-| `lint` | Output Lint Summary | TBD | Pending | Posts Markdown step summary |
+| `lint` | Set up job | 3s | Success | Prepares GitHub Actions runner environment |
+| `lint` | Initialize environment | 18s | Success | Node.js v24.21.0 & pnpm v11.27.1 installed via dev-infra action |
+| `lint` | Install node modules | 29s | Success | `pnpm install --frozen-lockfile` completed cleanly |
+| `lint` | Check code lint | 17s | Success | `pnpm tslint` completed with zero lint violations |
+| `lint` | Check for circular dependencies | 6s | Success | `pnpm ts-circular-deps:check` passed |
+| `lint` | Validate pull approve configuration | 3s | Success | `pnpm ng-dev pullapprove verify` passed |
+| `lint` | Validate angular robot configuration | 1s | Success | `pnpm ng-dev ngbot verify` passed |
+| `lint` | Validate agent skills | 2s | Success | `pnpm ng-dev misc validate-skills` verified all agent skills |
+| `lint` | Confirm code builds with typescript | 2s | Success | `pnpm check-tooling-setup` validated TypeScript compiler setup |
+| `lint` | Output Lint Summary | <1s | Success | Formatted Markdown summary added to `$GITHUB_STEP_SUMMARY` |
+| `lint` | Complete job | <1s | Success | Clean exit code 0 |
+
+### Matrix Job Skipping Verification
+All unselected heavy targets (`adev`, `publish-snapshots`, `test`, `devtools`, `adev-deploy`, `vscode-ng-language-service`, `zone-js`, `integration-tests`) completed with `skipped` in 0s, conserving GitHub Actions runner quotas while allowing on-demand targeted execution.
 
 ---
 
