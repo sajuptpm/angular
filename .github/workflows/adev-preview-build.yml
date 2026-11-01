@@ -10,30 +10,89 @@ name: Build adev for preview deployment
 on:
   pull_request:
     types: [synchronize, labeled]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Execution mode (auto, native, original)'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - native
+          - original
+      pull_number:
+        description: 'Pull request number for metadata injection'
+        required: false
+        default: '0'
+        type: string
+      artifact_build_revision:
+        description: 'Artifact build revision SHA (leave blank to default to HEAD commit SHA)'
+        required: false
+        default: ''
+        type: string
 
-permissions: read-all
+permissions:
+  contents: read
+  actions: write
+  pull-requests: read
 
 jobs:
   adev-build:
-    runs-on: ubuntu-latest-8core
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
     if: |
+      github.event_name == 'workflow_dispatch' ||
       (github.event.action == 'labeled' && github.event.label.name == 'adev: preview') ||
       (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'adev: preview'))
     steps:
+      - name: Resolve Execution Mode
+        id: mode-resolver
+        env:
+          INPUT_MODE: ${{ inputs.mode }}
+          VAR_MODE: ${{ vars.DEV_INFRA_MODE }}
+          RBE_SECRET: ${{ secrets.RBE_TRUSTED_BUILDS_USER }}
+        run: |
+          MODE="${INPUT_MODE:-${VAR_MODE:-auto}}"
+          if [ "$MODE" = "auto" ]; then
+            if [ "${{ github.repository }}" = "angular/angular" ] || [ -n "$RBE_SECRET" ]; then
+              MODE="original"
+            else
+              MODE="native"
+            fi
+          fi
+          echo "Selected Execution Mode: $MODE"
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+
       - name: Initialize environment
         uses: angular/dev-infra/github-actions/npm/checkout-and-setup-node@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
+
       - name: Setup Bazel
         uses: angular/dev-infra/github-actions/bazel/setup@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
-      - name: Setup Bazel RBE
+
+      - name: Setup Bazel RBE (Original Mode)
+        if: steps.mode-resolver.outputs.mode == 'original'
         uses: angular/dev-infra/github-actions/bazel/configure-remote@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
+        with:
+          google_credential: ${{ secrets.RBE_TRUSTED_BUILDS_USER }}
+
       - name: Install node modules
         run: pnpm install --frozen-lockfile
+
       - name: Build adev
         # `snapshot-build` config is used to stamp the exact version with sha in the footer.
         run: pnpm bazel build //adev:build.production --config=snapshot-build
-      - uses: angular/dev-infra/github-actions/previews/pack-and-upload-artifact@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
+
+      - name: Pack and Upload adev preview artifact
+        uses: angular/dev-infra/github-actions/previews/pack-and-upload-artifact@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
         with:
           workflow-artifact-name: 'adev-preview'
-          pull-number: '${{github.event.pull_request.number}}'
-          artifact-build-revision: '${{github.event.pull_request.head.sha}}'
+          pull-number: '${{ github.event.pull_request.number || inputs.pull_number || 0 }}'
+          artifact-build-revision: '${{ github.event.pull_request.head.sha || inputs.artifact_build_revision || github.sha }}'
           deploy-directory: './dist/bin/adev/dist/browser'
+
+      - name: Upload Uncompressed Preview Artifact (Native Alternative)
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+        with:
+          name: 'adev-preview-site'
+          path: './dist/bin/adev/dist/browser'
+          if-no-files-found: warn

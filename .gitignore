@@ -57,3 +57,7 @@ baseline.json
 
 # pnpm store
 .pnpm-store
+
+# Workflow modernization environment files
+workflow-fixes/*.env
+!workflow-fixes/*.env.example
