@@ -1,8 +1,8 @@
 diff --git a/.github/workflows/adev-preview-build.yml b/.github/workflows/adev-preview-build.yml
-index 087b6ee9fe..6c55b58f9b 100644
+index 087b6ee9fe..ffc03db302 100644
 --- a/.github/workflows/adev-preview-build.yml
 +++ b/.github/workflows/adev-preview-build.yml
-@@ -10,30 +10,117 @@ name: Build adev for preview deployment
+@@ -10,30 +10,132 @@ name: Build adev for preview deployment
  on:
    pull_request:
      types: [synchronize, labeled]
@@ -26,6 +26,11 @@ index 087b6ee9fe..6c55b58f9b 100644
 +        description: 'Artifact build revision SHA (leave blank to default to HEAD commit SHA)'
 +        required: false
 +        default: ''
++        type: string
++      bazel_jobs:
++        description: 'Parallel Bazel jobs for local native build (default: 2)'
++        required: false
++        default: '2'
 +        type: string
  
 -permissions: read-all
@@ -85,13 +90,15 @@ index 087b6ee9fe..6c55b58f9b 100644
 +
 +      - name: Configure Bazel Resource Limits (Native Mode)
 +        if: steps.mode-resolver.outputs.mode == 'native'
++        env:
++          JOBS: ${{ inputs.bazel_jobs || vars.BAZEL_JOBS || '2' }}
 +        run: |
-+          cat << 'EOF' >> .bazelrc.user
++          cat << EOF >> .bazelrc.user
 +          # Resource boundaries for native GitHub-hosted runner execution
-+          startup --host_jvm_args=-Xmx4g
-+          build --local_ram_resources=12000
-+          build --local_cpu_resources=4
-+          build --worker_max_instances=2
++          build --local_ram_resources=10000
++          build --local_cpu_resources=${JOBS}
++          build --jobs=${JOBS}
++          build --worker_max_instances=1
 +          EOF
 +          echo "Updated .bazelrc.user with native resource boundaries:"
 +          cat .bazelrc.user
@@ -106,9 +113,18 @@ index 087b6ee9fe..6c55b58f9b 100644
          run: pnpm install --frozen-lockfile
 +
        - name: Build adev
++        env:
++          NODE_OPTIONS: '--max-old-space-size=4096'
          # `snapshot-build` config is used to stamp the exact version with sha in the footer.
-         run: pnpm bazel build //adev:build.production --config=snapshot-build
+-        run: pnpm bazel build //adev:build.production --config=snapshot-build
 -      - uses: angular/dev-infra/github-actions/previews/pack-and-upload-artifact@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
++        run: |
++          if [ "${{ steps.mode-resolver.outputs.mode }}" = "native" ]; then
++            JOBS="${{ inputs.bazel_jobs || vars.BAZEL_JOBS || '2' }}"
++            pnpm bazel --host_jvm_args=-Xmx3g build //adev:build.production --config=snapshot-build --jobs="$JOBS"
++          else
++            pnpm bazel build //adev:build.production --config=snapshot-build
++          fi
 +
 +      - name: Pack and Upload adev preview artifact
 +        uses: angular/dev-infra/github-actions/previews/pack-and-upload-artifact@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
