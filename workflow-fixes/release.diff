@@ -1,5 +1,5 @@
 diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
-index 4da75801ec..296b6254b1 100644
+index 4da75801ec..3dd99b8ed2 100644
 --- a/.github/workflows/release.yml
 +++ b/.github/workflows/release.yml
 @@ -1,11 +1,31 @@
@@ -99,7 +99,7 @@ index 4da75801ec..296b6254b1 100644
 +
 +      - name: Configure Bazel Memory Boundaries
 +        run: |
-+          echo "build --host_jvm_args=-Xmx3g" >> ~/.bazelrc
++          echo "startup --host_jvm_args=-Xmx3g" >> ~/.bazelrc
 +          echo "build --jobs=2" >> ~/.bazelrc
 +          echo "build --local_ram_resources=10000" >> ~/.bazelrc
 +

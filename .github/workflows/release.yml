@@ -87,7 +87,7 @@ jobs:
 
       - name: Configure Bazel Memory Boundaries
         run: |
-          echo "build --host_jvm_args=-Xmx3g" >> ~/.bazelrc
+          echo "startup --host_jvm_args=-Xmx3g" >> ~/.bazelrc
           echo "build --jobs=2" >> ~/.bazelrc
           echo "build --local_ram_resources=10000" >> ~/.bazelrc
 
