@@ -131,14 +131,22 @@ jobs:
       - name: Running benchmark
         id: benchmark
         env:
-          COMPARE_SHA: ${{ steps.info.outputs.compareSha }}
+          RAW_COMPARE_SHA: ${{ steps.info.outputs.compareSha }}
           BENCHMARK_TARGET: ${{ steps.info.outputs.benchmarkTarget }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
+          COMPARE_SHA=$(echo "$RAW_COMPARE_SHA" | tr -d '\r' | tail -n 1)
+          echo "Cleaned Compare SHA: $COMPARE_SHA"
           if [ "$DRY_RUN" = "true" ]; then
             echo "Executing in dry-run mode for $BENCHMARK_TARGET against $COMPARE_SHA"
-            echo "workingStageResultsText=Dry-run benchmark: successfully validated harness and target '$BENCHMARK_TARGET' on PR HEAD." >> "$GITHUB_OUTPUT"
-            echo "comparisonResultsText=Dry-run benchmark: successfully validated worktree harness on comparison ref '$COMPARE_SHA'." >> "$GITHUB_OUTPUT"
+            {
+              echo "workingStageResultsText<<EOF"
+              echo "Dry-run benchmark: validated harness for $BENCHMARK_TARGET on PR HEAD."
+              echo "EOF"
+              echo "comparisonResultsText<<EOF"
+              echo "Dry-run benchmark: validated worktree harness on comparison ref $COMPARE_SHA."
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
           else
             pnpm benchmarks run-compare "$COMPARE_SHA" "$BENCHMARK_TARGET"
           fi
