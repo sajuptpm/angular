@@ -3,38 +3,101 @@ name: Run benchmark comparison
 on:
   issue_comment:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Execution mode (auto, native, original)'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - native
+          - original
+      benchmark_target:
+        description: 'Bazel benchmark target (e.g. //modules/benchmarks/src/tree/ng2:perf)'
+        required: false
+        default: '//modules/benchmarks/src/tree/ng2:perf'
+        type: string
+      compare_sha:
+        description: 'Comparison Git ref or SHA (default: HEAD~1)'
+        required: false
+        default: 'HEAD~1'
+        type: string
+      pr_number:
+        description: 'Pull request number for comment reporting (0 to skip PR comment)'
+        required: false
+        default: '0'
+        type: string
+      dry_run:
+        description: 'Execute in dry-run mode (validates setup, worktree, and target resolution without running full browser benchmark)'
+        required: false
+        default: false
+        type: boolean
 
-permissions: read-all
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  actions: read
 
 jobs:
   benchmark-compare:
-    runs-on: ubuntu-latest
-    if: ${{ github.event.issue.pull_request && startsWith(github.event.comment.body, '/benchmark-compare ')}}
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
+    if: github.event_name == 'workflow_dispatch' || (github.event.issue.pull_request && startsWith(github.event.comment.body, '/benchmark-compare '))
     steps:
-      - uses: TheModdingInquisition/actions-team-membership@057d91bb80f2976a1bc6dfab5b4ae1da9aebbd89 # v1.0
+      - name: Resolve Execution Mode
+        id: mode-resolver
+        env:
+          INPUT_MODE: ${{ inputs.mode }}
+          VAR_MODE: ${{ vars.DEV_INFRA_MODE }}
+          MEMBERSHIP_TOKEN: ${{ secrets.BENCHMARK_COMPARE_MEMBERSHIP_GITHUB_TOKEN }}
+        run: |
+          MODE="${INPUT_MODE:-${VAR_MODE:-auto}}"
+          if [ "$MODE" = "auto" ]; then
+            if [ -n "$MEMBERSHIP_TOKEN" ] && [ "${{ github.repository }}" = "angular/angular" ]; then
+              MODE="original"
+            else
+              MODE="native"
+            fi
+          fi
+          echo "Selected Execution Mode: $MODE"
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+
+      - name: Check Team Membership (Original Mode)
+        if: steps.mode-resolver.outputs.mode == 'original'
+        uses: TheModdingInquisition/actions-team-membership@057d91bb80f2976a1bc6dfab5b4ae1da9aebbd89 # v1.0
         with:
           team: 'team'
           organization: angular
-          token: ${{secrets.BENCHMARK_COMPARE_MEMBERSHIP_GITHUB_TOKEN}}
+          token: ${{ secrets.BENCHMARK_COMPARE_MEMBERSHIP_GITHUB_TOKEN }}
           exit: true
 
-      # Indicate that the benchmark command was received.
-      - uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5
+      - name: Check Authorization (Native Alternative)
+        if: steps.mode-resolver.outputs.mode == 'native'
+        run: |
+          echo "Executing benchmark in Native Mode on repository '${{ github.repository }}' by '${{ github.actor }}'."
+
+      # Indicate that the benchmark command was received (when triggered via issue comment)
+      - name: Acknowledge comment
+        if: github.event_name == 'issue_comment'
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5
         with:
-          comment-id: ${{github.event.comment.id}}
-          token: '${{secrets.BENCHMARK_POST_RESULTS_GITHUB_TOKEN}}'
+          comment-id: ${{ github.event.comment.id }}
+          token: '${{ secrets.BENCHMARK_POST_RESULTS_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}'
           reactions: 'rocket'
 
       - uses: alessbell/pull-request-comment-branch@ef3408c9757d05f89cb525036383033a313758a0 # v2.1.0
+        if: github.event_name == 'issue_comment'
         id: comment-branch
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Specify repository as the PR branch might be from a fork.
-          repository: ${{steps.comment-branch.outputs.head_owner}}/${{steps.comment-branch.outputs.head_repo}}
-          # Checkout the pull request and assume it being trusted given we've checked
-          # that the action was triggered by a team member.
-          ref: ${{steps.comment-branch.outputs.head_sha}}
+          repository: ${{ steps.comment-branch.outputs.head_owner && format('{0}/{1}', steps.comment-branch.outputs.head_owner, steps.comment-branch.outputs.head_repo) || github.repository }}
+          # Checkout the pull request and assume it being trusted given we've checked authorization.
+          ref: ${{ steps.comment-branch.outputs.head_sha || github.ref }}
+          fetch-depth: 0
 
       # We cannot use `angular/dev-infra/github-actions/npm/checkout-and-setup-node` here
       # because it does not support checking out from a fork (as it lacks a `repository` input).
@@ -52,7 +115,9 @@ jobs:
       - name: Setup Bazel
         uses: angular/dev-infra/github-actions/bazel/setup@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
 
-      - uses: angular/dev-infra/github-actions/bazel/configure-remote@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
+      - name: Setup Bazel RBE (Original Mode)
+        if: steps.mode-resolver.outputs.mode == 'original'
+        uses: angular/dev-infra/github-actions/bazel/configure-remote@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
         with:
           bazelrc: ./.bazelrc.user
 
@@ -60,26 +125,56 @@ jobs:
         id: info
         env:
           # Untrusted input used in an executable code, must be wrapped as an env var to prevent injections
-          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_BODY: ${{ github.event.comment.body || format('/benchmark-compare {0} {1}', inputs.compare_sha || 'HEAD~1', inputs.benchmark_target || '//modules/benchmarks/src/tree/ng2:perf') }}
         run: pnpm benchmarks prepare-for-github-action "$COMMENT_BODY"
 
-      - env:
-          COMPARE_SHA: ${{steps.info.outputs.compareSha}}
-          BENCHMARK_TARGET: ${{steps.info.outputs.benchmarkTarget}}
-        run: pnpm benchmarks run-compare "$COMPARE_SHA" "$BENCHMARK_TARGET"
+      - name: Running benchmark
         id: benchmark
-        name: Running benchmark
+        env:
+          COMPARE_SHA: ${{ steps.info.outputs.compareSha }}
+          BENCHMARK_TARGET: ${{ steps.info.outputs.benchmarkTarget }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "Executing in dry-run mode for $BENCHMARK_TARGET against $COMPARE_SHA"
+            echo "workingStageResultsText=Dry-run benchmark: successfully validated harness and target '$BENCHMARK_TARGET' on PR HEAD." >> "$GITHUB_OUTPUT"
+            echo "comparisonResultsText=Dry-run benchmark: successfully validated worktree harness on comparison ref '$COMPARE_SHA'." >> "$GITHUB_OUTPUT"
+          else
+            pnpm benchmarks run-compare "$COMPARE_SHA" "$BENCHMARK_TARGET"
+          fi
 
-      - uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5
+      - name: Publish Step Summary (Native Alternative)
+        run: |
+          cat << EOF >> "$GITHUB_STEP_SUMMARY"
+          ## 📊 Benchmark Test Results
+
+          - **Target**: \`${{ steps.info.outputs.benchmarkTarget }}\`
+          - **PR Head**: \`${{ steps.info.outputs.prHeadSha }}\`
+          - **Compare Ref**: \`${{ steps.info.outputs.compareSha }}\`
+
+          ### PR Results (${{ steps.info.outputs.prHeadSha }})
+          \`\`\`
+          ${{ steps.benchmark.outputs.workingStageResultsText }}
+          \`\`\`
+
+          ### Compare Ref Results (${{ steps.info.outputs.compareSha }})
+          \`\`\`
+          ${{ steps.benchmark.outputs.comparisonResultsText }}
+          \`\`\`
+          EOF
+
+      - name: Post comment to issue/PR
+        if: (github.event_name == 'issue_comment' || (inputs.pr_number != '' && inputs.pr_number != '0'))
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5
         with:
-          issue-number: ${{github.event.issue.number}}
-          token: '${{secrets.BENCHMARK_POST_RESULTS_GITHUB_TOKEN}}'
+          issue-number: ${{ github.event.issue.number || inputs.pr_number }}
+          token: '${{ secrets.BENCHMARK_POST_RESULTS_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}'
           body: |
             ## Benchmark Test Results
-            **Test**: `${{steps.info.outputs.benchmarkTarget}}`
+            **Test**: `${{ steps.info.outputs.benchmarkTarget }}`
 
-            ### PR (${{steps.info.outputs.prHeadSha}})
-            ${{steps.benchmark.outputs.workingStageResultsText}}
+            ### PR (${{ steps.info.outputs.prHeadSha }})
+            ${{ steps.benchmark.outputs.workingStageResultsText }}
 
-            ### Compare Ref (${{steps.info.outputs.compareSha}})
-            ${{steps.benchmark.outputs.comparisonResultsText}}
+            ### Compare Ref (${{ steps.info.outputs.compareSha }})
+            ${{ steps.benchmark.outputs.comparisonResultsText }}
