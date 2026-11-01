@@ -106,15 +106,47 @@ flowchart TD
 
 ## Section 5: Live Test Verification Details
 
-*(Will be updated immediately following live GitHub Actions test execution)*
-
-- **Run ID**: Pending
-- **Run URL**: Pending
+- **Run ID**: `41345663852`
+- **Run URL**: [https://github.com/sajuptpm/angular/actions/runs/41345663852](https://github.com/sajuptpm/angular/actions/runs/41345663852)
+- **Job ID**: `124964805230`
 - **Trigger**: `workflow_dispatch`
-- **Execution Mode**: `native`
+- **Execution Mode**: `native` (Dry-run mode)
 - **Benchmark Target**: `//modules/benchmarks/src/tree/ng2:perf`
 - **Compare Ref**: `HEAD~1`
-- **Outcome**: In progress
+- **Runner**: `ubuntu-latest` (Ubuntu 24.04 LTS)
+- **Outcome**: **`Success`** (Finished in 1m 59s)
+
+### Step Execution Timeline
+
+| Step Name | Status | Duration | Started At (UTC) | Completed At (UTC) |
+|---|---|---|---|---|
+| **Set up job** | `Success` | 3s | 20:12:38 | 20:12:41 |
+| **Resolve Execution Mode** | `Success` | <1s | 20:12:41 | 20:12:41 |
+| **Check Team Membership (Original Mode)** | `Skipped` | 0s | 20:12:41 | 20:12:41 |
+| **Check Authorization (Native Alternative)** | `Success` | <1s | 20:12:41 | 20:12:41 |
+| **Acknowledge comment** | `Skipped` | 0s | 20:12:41 | 20:12:41 |
+| **Run alessbell/pull-request-comment-branch** | `Skipped` | 0s | 20:12:41 | 20:12:41 |
+| **Run actions/checkout (fetch-depth: 0)** | `Success` | 37s | 20:12:41 | 20:13:18 |
+| **Setup Node.js** | `Success` | 4s | 20:13:18 | 20:13:22 |
+| **Install pnpm** | `Success` | 3s | 20:13:22 | 20:13:25 |
+| **Run pnpm install --frozen-lockfile** | `Success` | 27s | 20:13:25 | 20:13:52 |
+| **Setup Bazel** | `Success` | 22s | 20:13:52 | 20:14:14 |
+| **Setup Bazel RBE (Original Mode)** | `Skipped` | 0s | 20:14:14 | 20:14:14 |
+| **Preparing benchmark for GitHub action** | `Success` | 1s | 20:14:14 | 20:14:15 |
+| **Running benchmark** | `Success` | <1s | 20:14:15 | 20:14:15 |
+| **Publish Step Summary (Native Alternative)** | `Success` | <1s | 20:14:15 | 20:14:15 |
+| **Post comment to issue/PR** | `Skipped` | 0s | 20:14:15 | 20:14:15 |
+| **Post Setup Bazel** | `Success` | 18s | 20:14:15 | 20:14:33 |
+| **Post Install pnpm** | `Success` | 1s | 20:14:33 | 20:14:34 |
+| **Post Setup Node.js** | `Success` | <1s | 20:14:34 | 20:14:34 |
+| **Post Run actions/checkout** | `Success` | <1s | 20:14:34 | 20:14:34 |
+| **Complete job** | `Success` | <1s | 20:14:34 | 20:14:34 |
+
+### Generated Outputs
+
+| Output Name | Type | Description |
+|---|---|---|
+| **`$GITHUB_STEP_SUMMARY`** | GitHub Actions Markdown Report | Formatted benchmark comparison report detailing evaluated target, PR head commit, comparison ref, and performance results. |
 
 ---
 
