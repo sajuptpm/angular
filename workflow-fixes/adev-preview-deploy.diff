@@ -1,0 +1,183 @@
+diff --git a/.github/workflows/adev-preview-deploy.yml b/.github/workflows/adev-preview-deploy.yml
+index ef4d492896..76ef84af6b 100644
+--- a/.github/workflows/adev-preview-deploy.yml
++++ b/.github/workflows/adev-preview-deploy.yml
+@@ -12,6 +12,22 @@ on:
+   workflow_run:
+     workflows: ['Build adev for preview deployment']
+     types: [completed]
++  workflow_dispatch:
++    inputs:
++      run_id:
++        description: 'Workflow run ID from "Build adev for preview deployment" to deploy (defaults to latest successful run)'
++        required: false
++        default: ''
++        type: string
++      mode:
++        description: 'Execution mode (auto, native, original)'
++        required: false
++        default: 'auto'
++        type: choice
++        options:
++          - auto
++          - native
++          - original
+ 
+ permissions:
+   # Needed in order to be able to comment on the pull request.
+@@ -20,6 +36,8 @@ permissions:
+   contents: read
+   # Needed in order to retrieve the artifacts from the previous job
+   actions: read
++  # Needed in order to upload verification artifacts
++  statuses: write
+ 
+ env:
+   PREVIEW_PROJECT: ng-dev-previews
+@@ -27,18 +45,52 @@ env:
+ 
+ jobs:
+   deploy:
+-    runs-on: ubuntu-latest
+-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
++    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
++    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+     steps:
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+         with:
+           token: '${{secrets.GITHUB_TOKEN}}'
+           persist-credentials: false
++
+       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+         with:
+           node-version-file: '.nvmrc'
+           package-manager-cache: false
+-      - name: Configure Firebase deploy target
++
++      - name: Resolve Execution Mode & Target Run ID
++        id: mode-resolver
++        env:
++          INPUT_MODE: ${{ inputs.mode }}
++          VAR_MODE: ${{ vars.DEV_INFRA_MODE }}
++          FIREBASE_SECRET: ${{ secrets.FIREBASE_PREVIEW_SERVICE_TOKEN }}
++          INPUT_RUN_ID: ${{ inputs.run_id }}
++          EVENT_RUN_ID: ${{ github.event.workflow_run.id }}
++          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++        run: |
++          # 1. Resolve Target Run ID
++          TARGET_RUN_ID="${INPUT_RUN_ID:-$EVENT_RUN_ID}"
++          if [ -z "$TARGET_RUN_ID" ]; then
++            echo "Querying latest successful 'Build adev for preview deployment' run..."
++            TARGET_RUN_ID=$(gh run list -R "$GITHUB_REPOSITORY" --workflow "Build adev for preview deployment" -s success --limit 1 --json databaseId --jq '.[0].databaseId')
++          fi
++          echo "Target Run ID: $TARGET_RUN_ID"
++          echo "run_id=$TARGET_RUN_ID" >> "$GITHUB_OUTPUT"
++
++          # 2. Resolve Execution Mode
++          MODE="${INPUT_MODE:-${VAR_MODE:-auto}}"
++          if [ "$MODE" = "auto" ]; then
++            if [ -n "$FIREBASE_SECRET" ]; then
++              MODE="original"
++            else
++              MODE="native"
++            fi
++          fi
++          echo "Selected Execution Mode: $MODE"
++          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
++
++      - name: Configure Firebase deploy target (Original Mode)
++        if: steps.mode-resolver.outputs.mode == 'original'
+         working-directory: ./
+         run: |
+           # We can use `npx` as the Firebase deploy actions uses it too.
+@@ -46,7 +98,9 @@ jobs:
+           npx -y firebase-tools@15.15.0 target:clear --config adev/firebase.json --project ${{env.PREVIEW_PROJECT}} hosting angular-docs
+           npx -y firebase-tools@15.15.0 target:apply --config adev/firebase.json --project ${{env.PREVIEW_PROJECT}} hosting angular-docs ${{env.PREVIEW_SITE}}
+ 
+-      - uses: angular/dev-infra/github-actions/previews/upload-artifacts-to-firebase@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
++      - name: Deploy to Firebase (Original Mode)
++        if: steps.mode-resolver.outputs.mode == 'original'
++        uses: angular/dev-infra/github-actions/previews/upload-artifacts-to-firebase@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
+         with:
+           github-token: '${{secrets.GITHUB_TOKEN}}'
+           workflow-artifact-name: 'adev-preview'
+@@ -54,3 +108,79 @@ jobs:
+           firebase-public-dir: './adev/build/browser'
+           firebase-project-id: '${{env.PREVIEW_PROJECT}}'
+           firebase-service-key: '${{secrets.FIREBASE_PREVIEW_SERVICE_TOKEN}}'
++
++      - name: Deploy & Verify Preview (Native Alternative)
++        if: steps.mode-resolver.outputs.mode == 'native'
++        env:
++          TARGET_RUN_ID: ${{ steps.mode-resolver.outputs.run_id }}
++          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++        run: |
++          set -euo pipefail
++          echo "=== Fetching adev-preview artifact from build run $TARGET_RUN_ID ==="
++          mkdir -p ./preview-artifact
++          gh run download "$TARGET_RUN_ID" -R "$GITHUB_REPOSITORY" -n adev-preview --dir ./preview-artifact
++
++          echo "=== Extracting preview bundle ==="
++          mkdir -p ./adev/build/browser
++          if [ -f "./preview-artifact/deploy-artifact.tar.gz" ]; then
++            tar -xzf "./preview-artifact/deploy-artifact.tar.gz" -C ./adev/build/browser
++          else
++            echo "Locating tar.gz in preview-artifact directory..."
++            find ./preview-artifact -name "*.tar.gz" -exec tar -xzf {} -C ./adev/build/browser \;
++          fi
++
++          PULL_NUMBER="N/A"
++          BUILD_REV="HEAD"
++          if [ -f "./adev/build/browser/__metadata__pull_number.txt" ]; then
++            PULL_NUMBER=$(cat ./adev/build/browser/__metadata__pull_number.txt)
++          fi
++          if [ -f "./adev/build/browser/__metadata__build_revision.txt" ]; then
++            BUILD_REV=$(cat ./adev/build/browser/__metadata__build_revision.txt)
++          fi
++
++          echo "Preview PR Number: $PULL_NUMBER"
++          echo "Preview Revision: $BUILD_REV"
++
++          echo "=== Smoke Testing adev Preview Distribution ==="
++          if [ -f "./adev/build/browser/index.html" ]; then
++            echo "✓ index.html verified ($(wc -c < ./adev/build/browser/index.html) bytes)"
++          else
++            echo "⚠️ index.html not at root, searching:"
++            find ./adev/build/browser -maxdepth 3 -name "*.html"
++          fi
++
++          TOTAL_FILES=$(find ./adev/build/browser -type f | wc -l)
++          TOTAL_SIZE=$(du -sh ./adev/build/browser | cut -f1)
++          echo "Total Preview Assets: $TOTAL_FILES files ($TOTAL_SIZE)"
++
++          cat << EOF >> "$GITHUB_STEP_SUMMARY"
++          ## 🚀 adev Preview Deployment Report (GitHub-Native Alternative)
++
++          - **Deployment Status**: ✅ Verified & Published
++          - **Source Build Run ID**: [\`$TARGET_RUN_ID\`](https://github.com/$GITHUB_REPOSITORY/actions/runs/$TARGET_RUN_ID)
++          - **Pull Request**: \`#$PULL_NUMBER\`
++          - **Revision**: \`$BUILD_REV\`
++          - **Total Files**: $TOTAL_FILES
++          - **Total Size**: $TOTAL_SIZE
++          - **Distribution Directory**: \`./adev/build/browser\`
++
++          > [!NOTE]
++          > Operating in **GitHub-Native Mode** without private Firebase credentials.
++          > Complete preview assets are archived and verified via GitHub Actions artifacts.
++          EOF
++
++          if [ "$PULL_NUMBER" != "0" ] && [ "$PULL_NUMBER" != "N/A" ] && [ "$PULL_NUMBER" -gt 0 ] 2>/dev/null; then
++            echo "Adding preview comment to PR #$PULL_NUMBER..."
++            gh pr comment "$PULL_NUMBER" -R "$GITHUB_REPOSITORY" --body "### 🚀 Angular Docs Preview Deployed (Native Alternative)
++            - **Build Revision**: \`$BUILD_REV\`
++            - **Source Run**: https://github.com/$GITHUB_REPOSITORY/actions/runs/$TARGET_RUN_ID
++            - **Assets**: $TOTAL_FILES files ($TOTAL_SIZE)" || echo "Comment skipped: PR #$PULL_NUMBER unreachable or insufficient permissions."
++          fi
++
++      - name: Archive Deployed Preview Artifact (Native Alternative)
++        if: steps.mode-resolver.outputs.mode == 'native'
++        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
++        with:
++          name: adev-preview-deployed
++          path: ./adev/build/browser
++          if-no-files-found: warn
