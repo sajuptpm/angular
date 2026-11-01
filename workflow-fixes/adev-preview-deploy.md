@@ -88,14 +88,37 @@ flowchart TD
 
 ## Section 5: Live Test Verification Details
 
-*(Will be updated immediately following live GitHub Actions test execution)*
-
-- **Run ID**: Pending
-- **Run URL**: Pending
+- **Run ID**: `41344752622`
+- **Run URL**: [https://github.com/sajuptpm/angular/actions/runs/41344752622](https://github.com/sajuptpm/angular/actions/runs/41344752622)
+- **Job ID**: `124962081066`
 - **Trigger**: `workflow_dispatch`
 - **Execution Mode**: `native`
-- **Source Build Run ID**: `41342452537`
-- **Outcome**: In progress
+- **Source Build Run ID**: [`41342452537`](https://github.com/sajuptpm/angular/actions/runs/41342452537)
+- **Runner**: `ubuntu-latest` (Ubuntu 24.04 LTS)
+- **Outcome**: **`Success`** (Finished in 30s)
+
+### Step Execution Timeline
+
+| Step Name | Status | Duration | Started At (UTC) | Completed At (UTC) |
+|---|---|---|---|---|
+| **Set up job** | `Success` | 2s | 20:02:19 | 20:02:21 |
+| **Run actions/checkout** | `Success` | 5s | 20:02:21 | 20:02:26 |
+| **Run actions/setup-node** | `Success` | 4s | 20:02:26 | 20:02:30 |
+| **Resolve Execution Mode & Target Run ID** | `Success` | <1s | 20:02:30 | 20:02:30 |
+| **Configure Firebase deploy target (Original Mode)** | `Skipped` | 0s | 20:02:30 | 20:02:30 |
+| **Deploy to Firebase (Original Mode)** | `Skipped` | 0s | 20:02:30 | 20:02:30 |
+| **Deploy & Verify Preview (Native Alternative)** | `Success` | 5s | 20:02:30 | 20:02:35 |
+| **Archive Deployed Preview Artifact (Native Alternative)** | `Success` | 11s | 20:02:35 | 20:02:46 |
+| **Post actions/setup-node** | `Success` | <1s | 20:02:46 | 20:02:46 |
+| **Post actions/checkout** | `Success` | 1s | 20:02:46 | 20:02:47 |
+| **Complete job** | `Success` | <1s | 20:02:47 | 20:02:47 |
+
+### Generated Artifacts & Summary Outputs
+
+| Output Name | Type | Size | Description |
+|---|---|---|---|
+| **`adev-preview-deployed`** | Directory / Zip | ~65 MB | Fully uncompressed and verified docs site distribution extracted directly from the build tarball. |
+| **`$GITHUB_STEP_SUMMARY`** | GitHub Actions Markdown Report | N/A | Formatted report on the run summary page detailing source run ID, pull request metadata, commit revision, and file counts. |
 
 ---
 
