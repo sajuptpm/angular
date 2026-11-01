@@ -87,14 +87,33 @@ flowchart TD
 
 ## Section 5: Live Test Verification Details
 
-*(Will be updated immediately following live GitHub Actions test execution)*
-
-- **Run ID**: Pending
-- **Run URL**: Pending
+- **Run ID**: `41345090999`
+- **Run URL**: [https://github.com/sajuptpm/angular/actions/runs/41345090999](https://github.com/sajuptpm/angular/actions/runs/41345090999)
+- **Job ID**: `124963102477`
 - **Trigger**: `workflow_dispatch`
 - **Execution Mode**: `native`
 - **Target Branch**: `main`
-- **Outcome**: In progress
+- **Runner**: `ubuntu-latest` (Ubuntu 24.04 LTS)
+- **Outcome**: **`Success`** (Finished in 11s)
+
+### Step Execution Timeline
+
+| Step Name | Status | Duration | Started At (UTC) | Completed At (UTC) |
+|---|---|---|---|---|
+| **Set up job** | `Success` | 2s | 20:06:13 | 20:06:15 |
+| **Resolve Execution Mode** | `Success` | <1s | 20:06:15 | 20:06:15 |
+| **Checkout repository** | `Success` | 4s | 20:06:15 | 20:06:19 |
+| **Upstream Branch Manager (Original Mode)** | `Skipped` | 0s | 20:06:19 | 20:06:19 |
+| **Branch Mergeability Evaluation (Native Alternative)** | `Success` | 2s | 20:06:19 | 20:06:21 |
+| **Post Checkout repository** | `Success` | <1s | 20:06:21 | 20:06:21 |
+| **Complete job** | `Success` | <1s | 20:06:21 | 20:06:21 |
+
+### Verification Outputs
+
+| Output Name | Type | Description |
+|---|---|---|
+| **`mergeability` Commit Status** | GitHub Commit Status Check | Created status check context `mergeability` with state `success` on the evaluated commit SHA. |
+| **`$GITHUB_STEP_SUMMARY`** | GitHub Actions Markdown Report | Formatted report detailing target branch, evaluated pull requests count, and mergeability status. |
 
 ---
 
