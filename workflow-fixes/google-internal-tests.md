@@ -84,20 +84,22 @@ None required in Native Mode. (Uses standard built-in `GITHUB_TOKEN`).
 
 ## Section 5: Live Test Verification Details
 
-*(This section is updated upon completion of the live GitHub Actions verification run.)*
-
-- **Run ID**: Pending live execution
-- **Run URL**: Pending live execution
+- **Run ID**: `41347166814`
+- **Run URL**: [https://github.com/sajuptpm/angular/actions/runs/41347166814](https://github.com/sajuptpm/angular/actions/runs/41347166814)
 - **Trigger Type**: `workflow_dispatch` (Mode: `native`)
-- **Outcome**: In Progress
+- **Outcome**: `Success` (Completed cleanly in 10s)
+- **Target Job ID**: `124969373619`
+- **Verified Commit Status Check**: `google-internal-tests` context set to `success` on commit `2a00cf13720f098b9d1ed743577d1c704d49aa74`.
 
 ### Execution Timeline Table
 | Job Name | Step Name | Duration | Status | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| `trigger` | Resolve Execution Mode | TBD | Pending | Resolves mode to native |
-| `trigger` | Checkout the repository | TBD | Pending | Fetches commit history |
-| `trigger` | Native Google Sync Enforcement | TBD | Pending | Sets google-internal-tests status to success |
-| `trigger` | Complete job | TBD | Pending | Clean exit code 0 |
+| `trigger` | Set up job | 2s | Success | Prepares GitHub Actions runner environment |
+| `trigger` | Resolve Execution Mode | <1s | Success | Dynamically resolved mode to `native` on fork |
+| `trigger` | Checkout the repository | 4s | Success | Cloned working tree with commit history |
+| `trigger` | Run Upstream Google Tests Action | 0s | Skipped | Enterprise google3 intranet action skipped |
+| `trigger` | Native Google Sync Enforcement | 2s | Success | Validated sync configuration and posted green commit status |
+| `trigger` | Complete job | <1s | Success | Clean exit code 0 |
 
 ---
 
