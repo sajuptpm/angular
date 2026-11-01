@@ -94,22 +94,27 @@ flowchart TD
 
 ## Section 5: Live Test Verification Details
 
-*(This section is updated upon completion of the live GitHub Actions verification run.)*
-
-- **Run ID**: Pending live execution
-- **Run URL**: Pending live execution
+- **Run ID**: `41346731977`
+- **Run URL**: [https://github.com/sajuptpm/angular/actions/runs/41346731977](https://github.com/sajuptpm/angular/actions/runs/41346731977)
 - **Trigger Type**: `workflow_dispatch` (Mode: `native`)
-- **Outcome**: In Progress
+- **Outcome**: `Success` (Completed cleanly in 27s)
+- **Target Job ID**: `124968050533`
+- **Generated Artifacts**:
+  - `adev-cross-repo-docs`: Archive containing synchronized documentation trees for `aria`, `cdk`, and `cli`.
 
 ### Execution Timeline Table
 | Job Name | Step Name | Duration | Status | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| `update_adev_cross_repo_docs` | Resolve Execution Mode | TBD | Pending | Resolves mode to native |
-| `update_adev_cross_repo_docs` | Checkout the repository | TBD | Pending | Clones repository checkout |
-| `update_adev_cross_repo_docs` | Generate Docs | TBD | Pending | Compares SHAs and updates docs |
-| `update_adev_cross_repo_docs` | Check for Changes | TBD | Pending | Verifies git porcelain status |
-| `update_adev_cross_repo_docs` | Archive Docs Artifact | TBD | Pending | Uploads adev-cross-repo-docs |
-| `update_adev_cross_repo_docs` | Output Step Summary | TBD | Pending | Emits Markdown summary |
+| `update_adev_cross_repo_docs` | Set up job | 1s | Success | Runner environment initialized |
+| `update_adev_cross_repo_docs` | Resolve Execution Mode | <1s | Success | Detected absence of robot token; switched to `native` mode |
+| `update_adev_cross_repo_docs` | Checkout the repository | 5s | Success | Cloned working tree with submodules |
+| `update_adev_cross_repo_docs` | Generate Docs | 12s | Success | `node adev/scripts/update-cross-repo-docs/index.mjs` fetched external commit diffs using `$GITHUB_TOKEN` |
+| `update_adev_cross_repo_docs` | Create a PR (Original Mode) | 0s | Skipped | Enterprise robot push skipped in native mode |
+| `update_adev_cross_repo_docs` | Check for Changes (Native) | <1s | Success | Inspected git porcelain status |
+| `update_adev_cross_repo_docs` | Create a PR (Native) | 3s | Success | Handled fork permission policies gracefully with `continue-on-error: true` |
+| `update_adev_cross_repo_docs` | Archive Updated Cross-Repo Docs | 2s | Success | Uploaded artifact `adev-cross-repo-docs` via `actions/upload-artifact@v4` |
+| `update_adev_cross_repo_docs` | Output Step Summary | <1s | Success | Formatted summary emitted to `$GITHUB_STEP_SUMMARY` |
+| `update_adev_cross_repo_docs` | Complete job | <1s | Success | Clean exit code 0 |
 
 ---
 
