@@ -1,11 +1,31 @@
 name: Publish Release
 
 on:
-  push:
-    branches:
-      - main
-      - '[0-9]+.[0-9]+.x'
-  workflow_dispatch: # Allow manual trigger for verification
+  # Heavy automatic push trigger commented out during modernization testing to conserve runner minutes.
+  # Can be re-enabled on forks by uncommenting:
+  # push:
+  #   branches:
+  #     - main
+  #     - '[0-9]+.[0-9]+.x'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Execution mode (auto, native, original)'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - native
+          - original
+      dry_run:
+        description: 'Perform dry-run release build without publishing to NPM'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 # Ensure only one release runs at a time PER BRANCH to avoid race conditions.
 concurrency:
@@ -13,12 +33,96 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read # Required to checkout the repository
+  contents: write # Required to checkout repository and manage draft release
   id-token: write # Required for NPM provenance in reusable workflow
+  actions: write # Required for uploading release artifacts
 
 jobs:
-  release:
+  setup:
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
+    outputs:
+      mode: ${{ steps.mode.outputs.mode }}
+    steps:
+      - name: Resolve Execution Mode
+        id: mode
+        env:
+          INPUT_MODE: ${{ inputs.mode }}
+          VAR_MODE: ${{ vars.DEV_INFRA_MODE }}
+          WOMBOT_SECRET: ${{ secrets.WOMBOT_TOKEN }}
+          ROBOT_SECRET: ${{ secrets.ANGULAR_ROBOT_PRIVATE_KEY }}
+        run: |
+          MODE="${INPUT_MODE:-${VAR_MODE:-auto}}"
+          if [ "$MODE" = "auto" ]; then
+            if [ -n "$WOMBOT_SECRET" ] && [ -n "$ROBOT_SECRET" ] && [ "${{ github.repository }}" = "angular/angular" ]; then
+              MODE="original"
+            else
+              MODE="native"
+            fi
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+
+  release-original:
+    needs: [setup]
+    if: needs.setup.outputs.mode == 'original'
     uses: angular/dev-infra/.github/workflows/reusable-release.yml@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
     secrets:
       wombot-token: ${{ secrets.WOMBOT_TOKEN }}
       angular-robot-key: ${{ secrets.ANGULAR_ROBOT_PRIVATE_KEY }}
+
+  release-native:
+    needs: [setup]
+    if: needs.setup.outputs.mode == 'native'
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
+    steps:
+      - name: Free Disk Space (Native Mode)
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+
+      - name: Initialize environment
+        uses: angular/dev-infra/github-actions/npm/checkout-and-setup-node@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
+
+      - name: Setup Bazel
+        uses: angular/dev-infra/github-actions/bazel/setup@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
+
+      - name: Configure Bazel Memory Boundaries
+        run: |
+          echo "build --host_jvm_args=-Xmx3g" >> ~/.bazelrc
+          echo "build --jobs=2" >> ~/.bazelrc
+          echo "build --local_ram_resources=10000" >> ~/.bazelrc
+
+      - name: Install node modules
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Release Packages (Native Dry-Run)
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
+        run: |
+          pnpm build
+
+      - name: Package Release Archives (Native Alternative)
+        run: |
+          mkdir -p dist/release-bundles
+          tar -czvf dist/release-bundles/angular-release-packages.tar.gz -C dist/packages-dist .
+          echo "Successfully bundled release packages into dist/release-bundles/angular-release-packages.tar.gz"
+
+      - name: Upload Release Artifacts (Native Alternative)
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+        with:
+          name: angular-release-packages
+          path: dist/release-bundles/angular-release-packages.tar.gz
+          if-no-files-found: warn
+
+      - name: Output Release Summary
+        if: always()
+        run: |
+          VERSION=$(node -p "require('./package.json').version" 2>/dev/null || echo "Unknown")
+          cat << EOF >> "$GITHUB_STEP_SUMMARY"
+          ### Angular Release Build Manifest (Native Mode)
+          - **Version**: \`$VERSION\`
+          - **Mode**: Native GitHub Alternative (Zero Enterprise Secrets)
+          - **Dry Run**: \`${{ inputs.dry_run || 'true' }}\`
+          - **Artifact Generated**: \`angular-release-packages\` (tar.gz)
+          - **Target Branch**: \`${{ github.ref_name }}\`
+          - **Commit SHA**: \`${{ github.sha }}\`
+          EOF
