@@ -17,7 +17,7 @@ The `adev-preview-build.yml` workflow compiles and packages the Angular document
 
 ```mermaid
 flowchart TD
-    Trigger([Trigger: workflow_dispatch OR pull_request]) --> ResolveMode[Resolve Execution Mode: auto | native | original]
+    Trigger([Trigger: workflow_dispatch OR pull_request]) --> ResolveMode["Resolve Execution Mode: auto | native | original"]
     
     subgraph ModeDetection[Dynamic Mode Resolution]
         ResolveMode --> CheckInput{Input / Variable override?}
