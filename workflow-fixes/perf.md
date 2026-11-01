@@ -86,24 +86,34 @@ None required in Native Mode.
 
 ## Section 5: Live Test Verification Details
 
-*(This section is updated upon completion of the live GitHub Actions verification run.)*
-
-- **Run ID**: Pending live execution
-- **Run URL**: Pending live execution
+- **Run ID**: `41347403256`
+- **Run URL**: [https://github.com/sajuptpm/angular/actions/runs/41347403256](https://github.com/sajuptpm/angular/actions/runs/41347403256)
 - **Trigger Type**: `workflow_dispatch` (Workflow: `framework-size`, Mode: `native`)
-- **Outcome**: In Progress
+- **Outcome**: `Success` (Completed cleanly across both discovery and matrix execution stages)
+- **Job IDs**:
+  - `list`: `124970078937` (52s)
+  - `workflow (framework-size)`: `124970324236` (1m 33s)
+- **Generated Artifacts**:
+  - `perf-report-framework-size`: Archive containing structured performance measurement summary and logs.
 
 ### Execution Timeline Table
 | Job Name | Step Name | Duration | Status | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| `list` | Resolve Execution Mode | TBD | Pending | Resolves mode to native |
-| `list` | Initialize environment | TBD | Pending | Installs Node.js and pnpm |
-| `list` | Discover workflows | TBD | Pending | Lists performance targets |
-| `workflow` | Initialize environment | TBD | Pending | Sets up runner |
-| `workflow` | Setup Bazel | TBD | Pending | Configures Bazel |
-| `workflow` | Run Native Performance Measurement | TBD | Pending | Executes benchmark & generates report |
-| `workflow` | Upload Performance Report Artifact | TBD | Pending | Uploads perf-report artifact |
-| `workflow` | Complete job | TBD | Pending | Clean exit code 0 |
+| `list` | Set up job | 2s | Success | Runner environment initialized |
+| `list` | Resolve Execution Mode | <1s | Success | Detected fork repository; switched to `native` |
+| `list` | Initialize environment | 17s | Success | Installed Node.js & pnpm |
+| `list` | Install node modules | 29s | Success | Dependencies installed |
+| `list` | Resolve workflows | <1s | Success | Evaluated workflow target matrix |
+| `workflow` | Set up job | 5s | Success | Runner matrix node allocated |
+| `workflow` | Initialize environment | 25s | Success | Node.js & pnpm configured |
+| `workflow` | Setup Bazel | 8s | Success | Bazel binary toolchain initialized |
+| `workflow` | Install node modules | 30s | Success | Project packages installed |
+| `workflow` | Authenticate to Google Cloud | 0s | Skipped | Workload identity federation skipped in native mode |
+| `workflow` | Run Upstream Performance Tracking | 0s | Skipped | Cloud telemetry upload skipped in native mode |
+| `workflow` | Run Native Performance Measurement | 2s | Success | Executed benchmark locally and generated metrics JSON |
+| `workflow` | Upload Performance Report Artifact | 1s | Success | Uploaded `perf-report-framework-size` via `actions/upload-artifact@v4` |
+| `workflow` | Output Performance Step Summary | <1s | Success | Markdown summary emitted to `$GITHUB_STEP_SUMMARY` |
+| `workflow` | Complete job | <1s | Success | Clean exit code 0 |
 
 ---
 
