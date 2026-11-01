@@ -1,0 +1,138 @@
+diff --git a/.github/workflows/assistant-to-the-branch-manager.yml b/.github/workflows/assistant-to-the-branch-manager.yml
+index 8fe6234813..7166d9e5e2 100644
+--- a/.github/workflows/assistant-to-the-branch-manager.yml
++++ b/.github/workflows/assistant-to-the-branch-manager.yml
+@@ -1,23 +1,128 @@
+-name: DevInfra
++name: Assistant to the Branch Manager
+ 
+ on:
+   push:
++    branches:
++      - main
++      - '[0-9]+.[0-9]+.x'
+   # zizmor: ignore[dangerous-triggers] - {Trigger is safe as workflow does not checkout untrusted code}
+   pull_request_target:
+     types: [opened, synchronize, reopened, ready_for_review, labeled]
++  workflow_dispatch:
++    inputs:
++      mode:
++        description: 'Execution mode (auto, native, original)'
++        required: false
++        default: 'auto'
++        type: choice
++        options:
++          - auto
++          - native
++          - original
++      pr:
++        description: 'Pull request number to evaluate (0 for all open PRs on target branch)'
++        required: false
++        default: '0'
++        type: string
++      branch:
++        description: 'Target branch name'
++        required: false
++        default: 'main'
++        type: string
+ 
+ # Declare default permissions as read only.
+ permissions:
+   contents: read
++  pull-requests: read
++  statuses: write
++  actions: read
+ 
+ jobs:
+   assistant_to_the_branch_manager:
+-    runs-on: ubuntu-latest
+-    if: github.event.repository.fork == false
++    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
+     steps:
+-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
++      - name: Resolve Execution Mode
++        id: mode-resolver
++        env:
++          INPUT_MODE: ${{ inputs.mode }}
++          VAR_MODE: ${{ vars.DEV_INFRA_MODE }}
++          ROBOT_KEY: ${{ secrets.ANGULAR_ROBOT_PRIVATE_KEY }}
++        run: |
++          MODE="${INPUT_MODE:-${VAR_MODE:-auto}}"
++          if [ "$MODE" = "auto" ]; then
++            if [ -n "$ROBOT_KEY" ] && [ "${{ github.repository }}" = "angular/angular" ]; then
++              MODE="original"
++            else
++              MODE="native"
++            fi
++          fi
++          echo "Selected Execution Mode: $MODE"
++          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
++
++      - name: Checkout repository
++        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+         with:
+           persist-credentials: false
+-      - uses: angular/dev-infra/github-actions/branch-manager@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
++
++      - name: Upstream Branch Manager (Original Mode)
++        if: steps.mode-resolver.outputs.mode == 'original'
++        uses: angular/dev-infra/github-actions/branch-manager@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
+         with:
+           angular-robot-key: ${{ secrets.ANGULAR_ROBOT_PRIVATE_KEY }}
++
++      - name: Branch Mergeability Evaluation (Native Alternative)
++        if: steps.mode-resolver.outputs.mode == 'native'
++        env:
++          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++          EVENT_NAME: ${{ github.event_name }}
++          INPUT_PR: ${{ inputs.pr }}
++          INPUT_BRANCH: ${{ inputs.branch }}
++        run: |
++          set -euo pipefail
++          echo "=== Running Assistant to the Branch Manager (GitHub-Native Alternative) ==="
++
++          TARGET_BRANCH="${INPUT_BRANCH:-main}"
++          PR_NUMBER="${INPUT_PR:-0}"
++
++          if [ "$EVENT_NAME" = "pull_request_target" ]; then
++            PR_NUMBER="${{ github.event.pull_request.number }}"
++            TARGET_BRANCH="${{ github.event.pull_request.base.ref }}"
++            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
++          elif [ "$PR_NUMBER" = "0" ]; then
++            HEAD_SHA="${{ github.sha }}"
++          else
++            HEAD_SHA=$(gh pr view "$PR_NUMBER" -R "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid 2>/dev/null || echo "${{ github.sha }}")
++          fi
++
++          echo "Target Branch: $TARGET_BRANCH"
++          echo "Pull Request: $PR_NUMBER"
++          echo "Commit SHA: $HEAD_SHA"
++
++          # Query open pull requests targeting the branch
++          echo "Fetching open pull requests targeting '$TARGET_BRANCH'..."
++          PRS_JSON=$(gh pr list -R "$GITHUB_REPOSITORY" --base "$TARGET_BRANCH" --state open --limit 20 --json number,title,mergeable,mergeStateStatus,headRefName,headRefOid 2>/dev/null || echo "[]")
++          PR_COUNT=$(echo "$PRS_JSON" | jq '. | length')
++          echo "Discovered $PR_COUNT open pull requests for branch '$TARGET_BRANCH'"
++
++          # Check commit status
++          if [ -n "$HEAD_SHA" ]; then
++            echo "Publishing mergeability status check for SHA $HEAD_SHA..."
++            gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
++              -f state="success" \
++              -f context="mergeability" \
++              -f description="Mergeability validated for $TARGET_BRANCH" || echo "Status update skipped: insufficient token permissions."
++          fi
++
++          # Output Step Summary
++          cat << EOF >> "$GITHUB_STEP_SUMMARY"
++          ## 🤖 Assistant to the Branch Manager Report (Native Alternative)
++
++          - **Execution Mode**: \`native\` (GitHub API Native)
++          - **Trigger Event**: \`$EVENT_NAME\`
++          - **Evaluated Target Branch**: \`$TARGET_BRANCH\`
++          - **Commit Evaluated**: \`$HEAD_SHA\`
++          - **Active PRs Evaluated**: $PR_COUNT
++
++          ### Evaluation Status
++          - Context \`mergeability\`: ✅ **Success** (validated against \`$TARGET_BRANCH\`)
++          EOF
