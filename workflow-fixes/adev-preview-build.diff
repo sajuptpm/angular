@@ -1,8 +1,8 @@
 diff --git a/.github/workflows/adev-preview-build.yml b/.github/workflows/adev-preview-build.yml
-index 087b6ee9fe..7886533545 100644
+index 087b6ee9fe..d90d4c98fd 100644
 --- a/.github/workflows/adev-preview-build.yml
 +++ b/.github/workflows/adev-preview-build.yml
-@@ -10,30 +10,89 @@ name: Build adev for preview deployment
+@@ -10,30 +10,114 @@ name: Build adev for preview deployment
  on:
    pull_request:
      types: [synchronize, labeled]
@@ -61,12 +61,37 @@ index 087b6ee9fe..7886533545 100644
 +          echo "Selected Execution Mode: $MODE"
 +          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
 +
++      - name: Configure Swap Space (Native Mode)
++        if: steps.mode-resolver.outputs.mode == 'native' && runner.os == 'Linux'
++        run: |
++          echo "Initial memory state:"
++          free -h
++          sudo fallocate -l 6G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=6144
++          sudo chmod 600 /swapfile
++          sudo mkswap /swapfile
++          sudo swapon /swapfile
++          echo "Configured 6GB swapfile. Updated memory state:"
++          free -h
++
        - name: Initialize environment
          uses: angular/dev-infra/github-actions/npm/checkout-and-setup-node@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
 +
        - name: Setup Bazel
          uses: angular/dev-infra/github-actions/bazel/setup@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
 -      - name: Setup Bazel RBE
++
++      - name: Configure Bazel Resource Limits (Native Mode)
++        if: steps.mode-resolver.outputs.mode == 'native'
++        run: |
++          cat << 'EOF' >> .bazelrc.user
++          # Resource tuning for standard GitHub-hosted runners (7GB RAM)
++          startup --host_jvm_args=-Xmx2048m
++          build --local_ram_resources=5500
++          build --local_cpu_resources=2
++          build --worker_max_instances=2
++          EOF
++          echo "Updated .bazelrc.user with native resource boundaries:"
++          cat .bazelrc.user
 +
 +      - name: Setup Bazel RBE (Original Mode)
 +        if: steps.mode-resolver.outputs.mode == 'original'

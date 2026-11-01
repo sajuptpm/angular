@@ -63,11 +63,36 @@ jobs:
           echo "Selected Execution Mode: $MODE"
           echo "mode=$MODE" >> "$GITHUB_OUTPUT"
 
+      - name: Configure Swap Space (Native Mode)
+        if: steps.mode-resolver.outputs.mode == 'native' && runner.os == 'Linux'
+        run: |
+          echo "Initial memory state:"
+          free -h
+          sudo fallocate -l 6G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=6144
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          echo "Configured 6GB swapfile. Updated memory state:"
+          free -h
+
       - name: Initialize environment
         uses: angular/dev-infra/github-actions/npm/checkout-and-setup-node@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
 
       - name: Setup Bazel
         uses: angular/dev-infra/github-actions/bazel/setup@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
+
+      - name: Configure Bazel Resource Limits (Native Mode)
+        if: steps.mode-resolver.outputs.mode == 'native'
+        run: |
+          cat << 'EOF' >> .bazelrc.user
+          # Resource tuning for standard GitHub-hosted runners (7GB RAM)
+          startup --host_jvm_args=-Xmx2048m
+          build --local_ram_resources=5500
+          build --local_cpu_resources=2
+          build --worker_max_instances=2
+          EOF
+          echo "Updated .bazelrc.user with native resource boundaries:"
+          cat .bazelrc.user
 
       - name: Setup Bazel RBE (Original Mode)
         if: steps.mode-resolver.outputs.mode == 'original'
