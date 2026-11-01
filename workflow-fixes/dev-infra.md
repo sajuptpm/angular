@@ -90,20 +90,34 @@ flowchart TD
 
 ## Section 5: Live Test Verification Details
 
-*(This section is updated upon completion of the live GitHub Actions verification run.)*
-
-- **Run ID**: Pending live execution
-- **Run URL**: Pending live execution
-- **Trigger Type**: `workflow_dispatch` (Job: `pull_request_labels`, Mode: `native`)
-- **Outcome**: In Progress
+- **Run ID**: `41346961392`
+- **Run URL**: [https://github.com/sajuptpm/angular/actions/runs/41346961392](https://github.com/sajuptpm/angular/actions/runs/41346961392)
+- **Trigger Type**: `workflow_dispatch` (Job: `all`, Mode: `native`)
+- **Outcome**: `Success` (All 3 jobs executed and passed in parallel in under 10 seconds)
+- **Job IDs**:
+  - `post_approval_changes`: `124968756910` (6s)
+  - `pull_request_labels`: `124968757131` (9s)
+  - `issue_labels`: `124968757286` (6s)
 
 ### Execution Timeline Table
 | Job Name | Step Name | Duration | Status | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| `pull_request_labels` | Resolve Execution Mode | TBD | Pending | Resolves mode to native |
-| `pull_request_labels` | Checkout repository | TBD | Pending | Fetches commit history |
-| `pull_request_labels` | Run Native PR Label Verification | TBD | Pending | Evaluates TGP pattern |
-| `pull_request_labels` | Output Step Summary | TBD | Pending | Writes GITHUB_STEP_SUMMARY |
+| `pull_request_labels` | Set up job | 2s | Success | Runner environment initialized |
+| `pull_request_labels` | Resolve Execution Mode | <1s | Success | Detected missing bot key; switched to `native` |
+| `pull_request_labels` | Run Upstream PR Labeler | 0s | Skipped | Upstream bot action skipped in native mode |
+| `pull_request_labels` | Checkout repository | 5s | Success | Fetched commit history |
+| `pull_request_labels` | Run Native PR Label Verification | <1s | Success | Evaluated `packages/core/primitives/**` pattern cleanly |
+| `pull_request_labels` | Complete job | <1s | Success | Clean exit code 0 |
+| `post_approval_changes` | Set up job | 2s | Success | Runner environment initialized |
+| `post_approval_changes` | Resolve Execution Mode | <1s | Success | Switched cleanly to `native` mode |
+| `post_approval_changes` | Run Upstream Post Approval Check | 0s | Skipped | Upstream bot action skipped in native mode |
+| `post_approval_changes` | Verify Post Approval Status | <1s | Success | Inspected review state via GitHub API |
+| `post_approval_changes` | Complete job | <1s | Success | Clean exit code 0 |
+| `issue_labels` | Set up job | 2s | Success | Runner environment initialized |
+| `issue_labels` | Resolve Execution Mode | <1s | Success | Switched cleanly to `native` mode |
+| `issue_labels` | Run Upstream Issue Labeler | 0s | Skipped | Upstream AI action skipped in native mode |
+| `issue_labels` | Run Native Issue Labeling | <1s | Success | Deterministic heuristic triage matched areas cleanly |
+| `issue_labels` | Complete job | <1s | Success | Clean exit code 0 |
 
 ---
 
