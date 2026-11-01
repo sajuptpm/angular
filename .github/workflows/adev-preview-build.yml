@@ -63,16 +63,19 @@ jobs:
           echo "Selected Execution Mode: $MODE"
           echo "mode=$MODE" >> "$GITHUB_OUTPUT"
 
-      - name: Configure Swap Space (Native Mode)
+      - name: Free Disk Space & Check Resources (Native Mode)
         if: steps.mode-resolver.outputs.mode == 'native' && runner.os == 'Linux'
         run: |
-          echo "Initial memory state:"
+          echo "Initial Disk & Memory state:"
+          df -h /
           free -h
-          sudo fallocate -l 6G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=6144
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
-          echo "Configured 6GB swapfile. Updated memory state:"
+
+          # Reclaim disk space from unused pre-installed software
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          sudo docker image prune --all --force || true
+
+          echo "Cleaned Disk & Memory state:"
+          df -h /
           free -h
 
       - name: Initialize environment
@@ -85,10 +88,10 @@ jobs:
         if: steps.mode-resolver.outputs.mode == 'native'
         run: |
           cat << 'EOF' >> .bazelrc.user
-          # Resource tuning for standard GitHub-hosted runners (7GB RAM)
-          startup --host_jvm_args=-Xmx2048m
-          build --local_ram_resources=5500
-          build --local_cpu_resources=2
+          # Resource boundaries for native GitHub-hosted runner execution
+          startup --host_jvm_args=-Xmx4g
+          build --local_ram_resources=12000
+          build --local_cpu_resources=4
           build --worker_max_instances=2
           EOF
           echo "Updated .bazelrc.user with native resource boundaries:"
