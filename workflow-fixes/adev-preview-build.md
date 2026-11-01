@@ -97,14 +97,39 @@ flowchart TD
 
 ## Section 5: Live Test Verification Details
 
-*(Will be updated immediately following live GitHub Actions test execution)*
-
-- **Run ID**: Pending
-- **Run URL**: Pending
+- **Run ID**: `41342452537`
+- **Run URL**: [https://github.com/sajuptpm/angular/actions/runs/41342452537](https://github.com/sajuptpm/angular/actions/runs/41342452537)
+- **Job ID**: `124955157585`
 - **Trigger**: `workflow_dispatch`
 - **Execution Mode**: `native`
-- **Runner**: `ubuntu-latest`
-- **Outcome**: In progress
+- **Runner**: `ubuntu-latest` (GitHub-hosted standard runner, Ubuntu 24.04 LTS)
+- **Outcome**: **`Success`** (Finished in 19m 37s)
+
+### Step Execution Timeline
+
+| Step Name | Status | Duration | Started At (UTC) | Completed At (UTC) |
+|---|---|---|---|---|
+| **Set up job** | `Success` | 3s | 19:34:58 | 19:35:01 |
+| **Resolve Execution Mode** | `Success` | <1s | 19:35:01 | 19:35:01 |
+| **Free Disk Space & Check Resources (Native Mode)** | `Success` | 2m 01s | 19:35:01 | 19:37:02 |
+| **Initialize environment** | `Success` | 18s | 19:37:02 | 19:37:20 |
+| **Setup Bazel** | `Success` | 3s | 19:37:20 | 19:37:23 |
+| **Configure Bazel Resource Limits (Native Mode)** | `Success` | <1s | 19:37:23 | 19:37:23 |
+| **Setup Bazel RBE (Original Mode)** | `Skipped` | 0s | 19:37:23 | 19:37:23 |
+| **Install node modules** | `Success` | 30s | 19:37:23 | 19:37:53 |
+| **Build adev** | `Success` | 15m 42s | 19:37:53 | 19:53:35 |
+| **Pack and Upload adev preview artifact** | `Success` | 13s | 19:53:35 | 19:53:48 |
+| **Upload Uncompressed Preview Artifact (Native Alternative)** | `Success` | 11s | 19:53:48 | 19:53:59 |
+| **Post Setup Bazel** (Repository cache upload) | `Success` | 32s | 19:53:59 | 19:54:31 |
+| **Post Initialize environment** | `Success` | 1s | 19:54:31 | 19:54:32 |
+| **Complete job** | `Success` | <1s | 19:54:32 | 19:54:32 |
+
+### Generated Artifacts
+
+| Artifact Name | Type | Size | Description |
+|---|---|---|---|
+| **`adev-preview`** | Compressed `.tar.gz` | ~65 MB | Upstream-compatible artifact containing injected metadata (`__metadata__pull_number.txt` and `__metadata__build_revision.txt`) for downstream deployment by `adev-preview-deploy.yml`. |
+| **`adev-preview-site`** | Directory / Zip | ~65 MB | Direct uncompressed distribution of the compiled docs site (`./dist/bin/adev/dist/browser`) for immediate inspection or GitHub Pages preview without decompression. |
 
 ---
 
