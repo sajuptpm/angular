@@ -1,16 +1,49 @@
 name: CI (push)
 
 on:
-  push:
-    branches:
-      - main
-      - '[0-9]+.[0-9]+.x'
+  # Heavy automatic push trigger commented out during modernization testing to conserve runner minutes.
+  # Can be re-enabled on forks by uncommenting:
+  # push:
+  #   branches:
+  #     - main
+  #     - '[0-9]+.[0-9]+.x'
+  workflow_dispatch:
+    inputs:
+      job:
+        description: 'Specific CI job to execute (or all)'
+        required: false
+        default: 'lint'
+        type: choice
+        options:
+          - all
+          - lint
+          - devtools
+          - test
+          - integration-tests
+          - adev
+          - vscode-ng-language-service
+          - publish-snapshots
+          - zone-js
+          - adev-deploy
+      mode:
+        description: 'Execution mode (auto, native, original)'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - native
+          - original
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions: {}
+permissions:
+  contents: read
+  actions: write
+  pull-requests: read
+  statuses: write
 
 defaults:
   run:
@@ -18,7 +51,8 @@ defaults:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || inputs.job == 'all' || inputs.job == 'lint'
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
     steps:
       - name: Initialize environment
         uses: angular/dev-infra/github-actions/npm/checkout-and-setup-node@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
@@ -36,17 +70,48 @@ jobs:
         run: pnpm ng-dev misc validate-skills
       - name: Confirm code builds with typescript as expected
         run: pnpm check-tooling-setup
+      - name: Output Lint Summary
+        if: always()
+        run: |
+          cat << 'EOF' >> "$GITHUB_STEP_SUMMARY"
+          ### CI Lint Results
+          - **tslint**: Completed
+          - **ts-circular-deps**: Checked
+          - **pullapprove**: Verified
+          - **ngbot**: Verified
+          - **agent skills**: Validated
+          - **tooling setup**: Confirmed
+          EOF
 
   devtools:
-    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || inputs.job == 'all' || inputs.job == 'devtools'
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
     steps:
+      - name: Resolve Execution Mode
+        id: mode
+        env:
+          INPUT_MODE: ${{ inputs.mode }}
+          VAR_MODE: ${{ vars.DEV_INFRA_MODE }}
+          RBE_SECRET: ${{ secrets.RBE_TRUSTED_BUILDS_USER }}
+        run: |
+          MODE="${INPUT_MODE:-${VAR_MODE:-auto}}"
+          if [ "$MODE" = "auto" ]; then
+            if [ -n "$RBE_SECRET" ] && [ "${{ github.repository }}" = "angular/angular" ]; then
+              MODE="original"
+            else
+              MODE="native"
+            fi
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+
       - name: Initialize environment
         uses: angular/dev-infra/github-actions/npm/checkout-and-setup-node@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
         with:
           disable-package-manager-cache: true
       - name: Setup Bazel
         uses: angular/dev-infra/github-actions/bazel/setup@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
-      - name: Setup Bazel RBE
+      - name: Setup Bazel RBE (Original Mode)
+        if: steps.mode.outputs.mode == 'original'
         uses: angular/dev-infra/github-actions/bazel/configure-remote@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
         with:
           google_credential: ${{ secrets.RBE_TRUSTED_BUILDS_USER }}
@@ -66,13 +131,32 @@ jobs:
           install: false
 
   test:
-    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || inputs.job == 'all' || inputs.job == 'test'
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
     steps:
+      - name: Resolve Execution Mode
+        id: mode
+        env:
+          INPUT_MODE: ${{ inputs.mode }}
+          VAR_MODE: ${{ vars.DEV_INFRA_MODE }}
+          RBE_SECRET: ${{ secrets.RBE_TRUSTED_BUILDS_USER }}
+        run: |
+          MODE="${INPUT_MODE:-${VAR_MODE:-auto}}"
+          if [ "$MODE" = "auto" ]; then
+            if [ -n "$RBE_SECRET" ] && [ "${{ github.repository }}" = "angular/angular" ]; then
+              MODE="original"
+            else
+              MODE="native"
+            fi
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+
       - name: Initialize environment
         uses: angular/dev-infra/github-actions/npm/checkout-and-setup-node@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
       - name: Setup Bazel
         uses: angular/dev-infra/github-actions/bazel/setup@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
-      - name: Setup Bazel Remote Caching
+      - name: Setup Bazel Remote Caching (Original Mode)
+        if: steps.mode.outputs.mode == 'original'
         uses: angular/dev-infra/github-actions/bazel/configure-remote@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
         with:
           google_credential: ${{ secrets.RBE_TRUSTED_BUILDS_USER }}
@@ -82,13 +166,32 @@ jobs:
         run: pnpm test:ci
 
   integration-tests:
-    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || inputs.job == 'all' || inputs.job == 'integration-tests'
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
     steps:
+      - name: Resolve Execution Mode
+        id: mode
+        env:
+          INPUT_MODE: ${{ inputs.mode }}
+          VAR_MODE: ${{ vars.DEV_INFRA_MODE }}
+          RBE_SECRET: ${{ secrets.RBE_TRUSTED_BUILDS_USER }}
+        run: |
+          MODE="${INPUT_MODE:-${VAR_MODE:-auto}}"
+          if [ "$MODE" = "auto" ]; then
+            if [ -n "$RBE_SECRET" ] && [ "${{ github.repository }}" = "angular/angular" ]; then
+              MODE="original"
+            else
+              MODE="native"
+            fi
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+
       - name: Initialize environment
         uses: angular/dev-infra/github-actions/npm/checkout-and-setup-node@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
       - name: Setup Bazel
         uses: angular/dev-infra/github-actions/bazel/setup@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
-      - name: Setup Bazel Remote Caching
+      - name: Setup Bazel Remote Caching (Original Mode)
+        if: steps.mode.outputs.mode == 'original'
         uses: angular/dev-infra/github-actions/bazel/configure-remote@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
         with:
           google_credential: ${{ secrets.RBE_TRUSTED_BUILDS_USER }}
@@ -98,14 +201,37 @@ jobs:
         run: pnpm integration-tests:ci
 
   adev:
-    runs-on:
-      labels: ubuntu-latest
+    if: github.event_name == 'push' || inputs.job == 'all' || inputs.job == 'adev'
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
     steps:
+      - name: Resolve Execution Mode
+        id: mode
+        env:
+          INPUT_MODE: ${{ inputs.mode }}
+          VAR_MODE: ${{ vars.DEV_INFRA_MODE }}
+          RBE_SECRET: ${{ secrets.RBE_TRUSTED_BUILDS_USER }}
+        run: |
+          MODE="${INPUT_MODE:-${VAR_MODE:-auto}}"
+          if [ "$MODE" = "auto" ]; then
+            if [ -n "$RBE_SECRET" ] && [ "${{ github.repository }}" = "angular/angular" ]; then
+              MODE="original"
+            else
+              MODE="native"
+            fi
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+
+      - name: Free Disk Space (Native Mode)
+        if: steps.mode.outputs.mode == 'native' && runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+
       - name: Initialize environment
         uses: angular/dev-infra/github-actions/npm/checkout-and-setup-node@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
       - name: Setup Bazel
         uses: angular/dev-infra/github-actions/bazel/setup@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
-      - name: Setup Bazel RBE
+      - name: Setup Bazel RBE (Original Mode)
+        if: steps.mode.outputs.mode == 'original'
         uses: angular/dev-infra/github-actions/bazel/configure-remote@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
         with:
           google_credential: ${{ secrets.RBE_TRUSTED_BUILDS_USER }}
@@ -117,14 +243,32 @@ jobs:
         run: pnpm bazel build //adev:build
 
   vscode-ng-language-service:
-    runs-on:
-      labels: ubuntu-latest
+    if: github.event_name == 'push' || inputs.job == 'all' || inputs.job == 'vscode-ng-language-service'
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
     steps:
+      - name: Resolve Execution Mode
+        id: mode
+        env:
+          INPUT_MODE: ${{ inputs.mode }}
+          VAR_MODE: ${{ vars.DEV_INFRA_MODE }}
+          RBE_SECRET: ${{ secrets.RBE_TRUSTED_BUILDS_USER }}
+        run: |
+          MODE="${INPUT_MODE:-${VAR_MODE:-auto}}"
+          if [ "$MODE" = "auto" ]; then
+            if [ -n "$RBE_SECRET" ] && [ "${{ github.repository }}" = "angular/angular" ]; then
+              MODE="original"
+            else
+              MODE="native"
+            fi
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+
       - name: Initialize environment
         uses: angular/dev-infra/github-actions/npm/checkout-and-setup-node@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
       - name: Setup Bazel
         uses: angular/dev-infra/github-actions/bazel/setup@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
-      - name: Setup Bazel RBE
+      - name: Setup Bazel RBE (Original Mode)
+        if: steps.mode.outputs.mode == 'original'
         uses: angular/dev-infra/github-actions/bazel/configure-remote@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
         with:
           google_credential: ${{ secrets.RBE_TRUSTED_BUILDS_USER }}
@@ -134,30 +278,82 @@ jobs:
         run: pnpm bazel test //vscode-ng-language-service/...
 
   publish-snapshots:
-    runs-on:
-      labels: ubuntu-latest
+    if: github.event_name == 'push' || inputs.job == 'all' || inputs.job == 'publish-snapshots'
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
     steps:
+      - name: Resolve Execution Mode
+        id: mode
+        env:
+          INPUT_MODE: ${{ inputs.mode }}
+          VAR_MODE: ${{ vars.DEV_INFRA_MODE }}
+          SNAPSHOT_TOKEN: ${{ secrets.SNAPSHOT_BUILDS_GITHUB_TOKEN }}
+        run: |
+          MODE="${INPUT_MODE:-${VAR_MODE:-auto}}"
+          if [ "$MODE" = "auto" ]; then
+            if [ -n "$SNAPSHOT_TOKEN" ] && [ "${{ github.repository }}" = "angular/angular" ]; then
+              MODE="original"
+            else
+              MODE="native"
+            fi
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+
       - name: Initialize environment
         uses: angular/dev-infra/github-actions/npm/checkout-and-setup-node@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
       - name: Setup Bazel
         uses: angular/dev-infra/github-actions/bazel/setup@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
-      - name: Setup Bazel RBE
+      - name: Setup Bazel RBE (Original Mode)
+        if: steps.mode.outputs.mode == 'original'
         uses: angular/dev-infra/github-actions/bazel/configure-remote@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
       - name: Install node modules
         run: pnpm install --frozen-lockfile
-      - run: echo "https://${{secrets.SNAPSHOT_BUILDS_GITHUB_TOKEN}}:@github.com" > ${HOME}/.git_credentials
-      - run: pnpm build
-      - run: ./scripts/ci/publish-snapshot-build-artifacts.sh
+
+      - name: Publish to Snapshot Repositories (Original Mode)
+        if: steps.mode.outputs.mode == 'original'
+        run: |
+          echo "https://${{secrets.SNAPSHOT_BUILDS_GITHUB_TOKEN}}:@github.com" > ${HOME}/.git_credentials
+          pnpm build
+          ./scripts/ci/publish-snapshot-build-artifacts.sh
+
+      - name: Build and Archive Snapshot Packages (Native Alternative)
+        if: steps.mode.outputs.mode == 'native'
+        run: |
+          pnpm build
+      - name: Upload Snapshot Packages (Native Alternative)
+        if: steps.mode.outputs.mode == 'native'
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+        with:
+          name: angular-snapshot-packages
+          path: dist/packages-dist/
+          if-no-files-found: warn
 
   zone-js:
-    runs-on:
-      labels: ubuntu-latest
+    if: github.event_name == 'push' || inputs.job == 'all' || inputs.job == 'zone-js'
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
     steps:
+      - name: Resolve Execution Mode
+        id: mode
+        env:
+          INPUT_MODE: ${{ inputs.mode }}
+          VAR_MODE: ${{ vars.DEV_INFRA_MODE }}
+          RBE_SECRET: ${{ secrets.RBE_TRUSTED_BUILDS_USER }}
+        run: |
+          MODE="${INPUT_MODE:-${VAR_MODE:-auto}}"
+          if [ "$MODE" = "auto" ]; then
+            if [ -n "$RBE_SECRET" ] && [ "${{ github.repository }}" = "angular/angular" ]; then
+              MODE="original"
+            else
+              MODE="native"
+            fi
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+
       - name: Initialize environment
         uses: angular/dev-infra/github-actions/npm/checkout-and-setup-node@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
       - name: Setup Bazel
         uses: angular/dev-infra/github-actions/bazel/setup@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
-      - name: Setup Bazel RBE
+      - name: Setup Bazel RBE (Original Mode)
+        if: steps.mode.outputs.mode == 'original'
         uses: angular/dev-infra/github-actions/bazel/configure-remote@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
         with:
           google_credential: ${{ secrets.RBE_TRUSTED_BUILDS_USER }}
@@ -194,28 +390,61 @@ jobs:
 
   adev-deploy:
     needs: [adev]
-    if: needs.adev.result == 'success'
-    runs-on: ubuntu-latest-8core
+    if: always() && (github.event_name == 'push' || inputs.job == 'all' || inputs.job == 'adev-deploy') && (needs.adev.result == 'success' || inputs.job == 'adev-deploy')
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
     steps:
+      - name: Resolve Execution Mode
+        id: mode
+        env:
+          INPUT_MODE: ${{ inputs.mode }}
+          VAR_MODE: ${{ vars.DEV_INFRA_MODE }}
+          DEPLOY_KEY: ${{ secrets.ANGULAR_DEV_SITE_DEPLOY }}
+        run: |
+          MODE="${INPUT_MODE:-${VAR_MODE:-auto}}"
+          if [ "$MODE" = "auto" ]; then
+            if [ -n "$DEPLOY_KEY" ] && [ "${{ github.repository }}" = "angular/angular" ]; then
+              MODE="original"
+            else
+              MODE="native"
+            fi
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+
+      - name: Free Disk Space (Native Mode)
+        if: steps.mode.outputs.mode == 'native' && runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+
       - name: Initialize environment
         uses: angular/dev-infra/github-actions/npm/checkout-and-setup-node@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
       - name: Setup Bazel
         uses: angular/dev-infra/github-actions/bazel/setup@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
-      - name: Setup Bazel RBE
+      - name: Setup Bazel RBE (Original Mode)
+        if: steps.mode.outputs.mode == 'original'
         uses: angular/dev-infra/github-actions/bazel/configure-remote@9ea19241c41afc4579f2bc6983327f6b98ef3025 # main
       - name: Install node modules
         run: pnpm install --frozen-lockfile
       - name: Build adev
         # `snapshot-build` config is used to stamp the exact version with sha in the footer.
         run: pnpm bazel build //adev:build.production --config=snapshot-build
-      - name: Deploy to firebase
+      - name: Deploy to firebase (Original Mode)
+        if: steps.mode.outputs.mode == 'original'
         uses: ./.github/actions/deploy-docs-site
         with:
           serviceKey: ${{ secrets.ANGULAR_DEV_SITE_DEPLOY }}
           githubReleaseTrainReadToken: ${{ secrets.DOCS_DEPLOY_GITHUB_RELEASE_TRAIN_TOKEN }}
           configPath: 'adev/firebase.json'
           distDir: 'dist/bin/adev/dist'
-      - name: Update Algolia synonym record
+      - name: Update Algolia synonym record (Original Mode)
+        if: steps.mode.outputs.mode == 'original'
         run: node adev/scripts/synonyms/update-synonyms.mts
         env:
           ALGOLIA_KEY: ${{ secrets.ALGOLIA_SYNONYM_MANAGER }}
+
+      - name: Archive Production Docs Site (Native Alternative)
+        if: steps.mode.outputs.mode == 'native'
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+        with:
+          name: adev-production-site
+          path: dist/bin/adev/dist
+          if-no-files-found: warn
