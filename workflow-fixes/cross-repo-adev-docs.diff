@@ -1,0 +1,144 @@
+diff --git a/.github/workflows/cross-repo-adev-docs.yml b/.github/workflows/cross-repo-adev-docs.yml
+index eecfceb78c..170a3256b4 100644
+--- a/.github/workflows/cross-repo-adev-docs.yml
++++ b/.github/workflows/cross-repo-adev-docs.yml
+@@ -2,41 +2,69 @@ name: Update ADEV Cross Repo Docs
+ 
+ on:
+   workflow_dispatch:
+-    inputs: {}
+-  push:
+-    branches:
+-      - 'main'
+-      - '[0-9]+.[0-9]+.x'
++    inputs:
++      mode:
++        description: 'Execution mode (auto, native, original)'
++        required: false
++        default: 'auto'
++        type: choice
++        options:
++          - auto
++          - native
++          - original
++  # Heavy automatic push trigger commented out during modernization testing to conserve runner minutes.
++  # Can be re-enabled on forks by uncommenting:
++  # push:
++  #   branches:
++  #     - 'main'
++  #     - '[0-9]+.[0-9]+.x'
+ 
+-# Declare default permissions as read only.
++# Declare permissions for dual-mode execution
+ permissions:
+-  contents: read
++  contents: write
++  pull-requests: write
++  actions: write
+ 
+ jobs:
+   update_adev_cross_repo_docs:
+     name: Update Cross Repo ADEV Docs
+-    if: github.repository == 'angular/angular'
+-    runs-on: ubuntu-latest
++    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
+     # Prevents multiple concurrent runs of this workflow for the same branch
+     concurrency:
+       group: ${{ github.workflow }}-${{ github.ref }}
+       cancel-in-progress: true
+ 
+     steps:
++      - name: Resolve Execution Mode
++        id: mode
++        env:
++          INPUT_MODE: ${{ inputs.mode }}
++          VAR_MODE: ${{ vars.DEV_INFRA_MODE }}
++          ROBOT_TOKEN: ${{ secrets.ANGULAR_ROBOT_ACCESS_TOKEN }}
++        run: |
++          MODE="${INPUT_MODE:-${VAR_MODE:-auto}}"
++          if [ "$MODE" = "auto" ]; then
++            if [ -n "$ROBOT_TOKEN" ] && [ "${{ github.repository }}" = "angular/angular" ]; then
++              MODE="original"
++            else
++              MODE="native"
++            fi
++          fi
++          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
++
+       - name: Checkout the repository
+         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+         with:
+-          # Setting `persist-credentials: false` prevents the github-action account from being the
+-          # account that is attempted to be used for authentication, instead the remote is set to
+-          # an authenticated URL.
+           persist-credentials: false
+ 
+       - name: Generate Docs
+         run: node adev/scripts/update-cross-repo-docs/index.mjs
+         env:
+-          ANGULAR_READONLY_GITHUB_TOKEN: ${{ secrets.READONLY_GITHUB_TOKEN }}
++          ANGULAR_READONLY_GITHUB_TOKEN: ${{ secrets.READONLY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
++          GITHUB_REF: ${{ github.ref }}
+ 
+-      - name: Create a PR (if necessary)
++      - name: Create a PR (Original Mode)
++        if: steps.mode.outputs.mode == 'original'
+         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+         with:
+           token: ${{ secrets.ANGULAR_ROBOT_ACCESS_TOKEN }}
+@@ -57,3 +85,55 @@ jobs:
+             docs: update cross-repo adev docs
+ 
+             Updated Angular adev cross repo docs files.
++
++      - name: Check for Changes (Native Alternative)
++        id: git-diff
++        if: steps.mode.outputs.mode == 'native'
++        run: |
++          if [ -n "$(git status --porcelain)" ]; then
++            echo "has_changes=true" >> "$GITHUB_OUTPUT"
++            echo "Changes detected in cross-repo documentation."
++          else
++            echo "has_changes=false" >> "$GITHUB_OUTPUT"
++            echo "No changes detected. Cross-repo documentation is fully up to date."
++          fi
++
++      - name: Create a PR (Native Alternative)
++        id: cpr-native
++        if: steps.mode.outputs.mode == 'native' && steps.git-diff.outputs.has_changes == 'true'
++        continue-on-error: true
++        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
++        with:
++          token: ${{ secrets.GITHUB_TOKEN }}
++          delete-branch: true
++          branch: docs-cross-repo-update-${{ github.ref_name }}
++          title: 'docs: update cross-repo adev docs [${{ github.ref_name }}]'
++          body: |
++            Updated Angular adev cross-repo docs files automatically generated in Native Mode.
++          commit-message: |
++            docs: update cross-repo adev docs
++
++            Updated Angular adev cross-repo docs files.
++
++      - name: Archive Updated Cross-Repo Docs (Native Alternative)
++        if: steps.mode.outputs.mode == 'native'
++        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
++        with:
++          name: adev-cross-repo-docs
++          path: |
++            adev/src/content/aria/
++            adev/src/content/cdk/
++            adev/src/content/cli/
++          if-no-files-found: warn
++
++      - name: Output Step Summary
++        if: always()
++        run: |
++          cat << 'EOF' >> "$GITHUB_STEP_SUMMARY"
++          ### ADEV Cross-Repo Docs Update Summary
++          - **Execution Mode**: ${{ steps.mode.outputs.mode }}
++          - **Branch**: ${{ github.ref_name }}
++          - **Changes Detected**: ${{ steps.git-diff.outputs.has_changes || 'None' }}
++          - **PR Created**: ${{ steps.cpr-native.outputs.pull-request-url || steps.cpr-native.outputs.pull-request-number || 'N/A' }}
++          - **Artifact Generated**: `adev-cross-repo-docs`
++          EOF
